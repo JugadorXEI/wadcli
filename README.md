@@ -25,6 +25,7 @@ Linux users are recommended to build `wadcli`. Here are the steps to do so:
 The makefile allows for additional flags:
 * `WINDOWS=1`: builds `wadcli` for Windows, which requires the 64-bit Mingw32 G++ compiler.
 * `STATIC=1`: builds `wadcli` with static libraries. This requires making a static library of `liblzf`, which goes beyond the scope of this readme.
+* `DEBUG=1`: prints more verbose information.
 
 Windows builds are compiled using `make WINDOWS=1 STATIC=1`.
 

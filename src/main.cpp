@@ -693,7 +693,7 @@ int main(int argc, char const *argv[])
 
 			if (couldFindIt)
 				std::cout << "WADCLI: Successfully renamed " << lumpName <<
-					" into " << filesToRename[i].c_str() << ".\n;";
+					" into " << filesToRename[i].c_str() << ".\n";
 			else
 				std::cout << "WADCLI: Could not find lump " << lumpName <<
 					" to rename into " << filesToRename[i].c_str() << ".\n";
