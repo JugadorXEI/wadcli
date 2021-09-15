@@ -37,7 +37,8 @@ _OBJ=main.o wadformat.o
 OBJ=$(patsubst %, $(OBJDIR)/%, $(_OBJ))
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp $(DEPS)
-	$(CXX) -g $(CPPFLAGS) -c -o $@ $< $(DIRAFTER)
+	@mkdir -p $(OBJDIR)
+	@$(CXX) -g $(CPPFLAGS) -c -o $@ $< $(DIRAFTER)
 
 $(APPNAME): $(OBJ)
 	$(CXX) -g $(CPPFLAGS) -o $@ $^ $(DIRAFTER) $(LDFLAGS) $(LDLIBS) $(DIRLOC)
