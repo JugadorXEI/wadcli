@@ -23,6 +23,17 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+/*
+	TODO:
+		Only allow wads from being read. Apparently I messed that up.
+		Graphics lumps transformation compatibility.
+		Way to output a file's contents to the terminal.
+        SDLL compatibility.
+		Implement EXIT_SUCCESS, EXIT FAILURE - https://en.cppreference.com/w/cpp/utility/program/EXIT_status
+		Use std::exit instead? https://en.cppreference.com/w/cpp/utility/program/exit
+		Wildcard/partial match support.
+*/
+
 #include <iostream>
 #include <fstream>
 #include <cstring>
