@@ -1,6 +1,7 @@
 *.wad
 *.pk3
 *.exe
+*.zip
 *.o
 wadcli
 **/wadtests
