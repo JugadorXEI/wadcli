@@ -14,7 +14,8 @@ If you feel you would really benefit from this software, please show your suppor
 
 Linux users are recommended to build `wadcli`. Here are the steps to do so:
 
-1. Get g++, make, git and liblzf. In Debian-based systems, using a terminal, this can be done through `sudo apt install g++ make git liblzf`.
+1. Get g++, make, git, liblzf1 and liblzf-dev. In Debian-based systems, using a terminal, this can be done through `sudo apt install g++ make git liblzf1 liblzf-dev`.
+  * For Ubuntu 20.04 and other derivatives, you may need to access the "Universe" repository. You may do so using `sudo add-apt-repository universe` and then `sudo apt-get update`. See also [here](https://askubuntu.com/questions/148638/how-do-i-enable-the-universe-repository).
 2. Clone this repository. Do so through `git clone https://github.com/JugadorXEI/wadcli.git` (or downloading the code directly from GitHub).
 3. Enter the project folder using `cd wadcli`.
 4. Do `make`. This will build `wadcli`.
@@ -31,7 +32,7 @@ Windows builds are compiled using `make WINDOWS=1 STATIC=1`.
 
 For any further help, do `wadcli --help`.
 
-ZWADs (compressed WADs) behave the same as decompressed WAD files (such as IWADs or PWADs) when it comes to input. Files that are added to a ZWAD will be compressed automatically.
+ZWADs (compressed WADs) behave the same as decompressed WAD files (such as IWADs or PWADs) when it comes to arguments. Files that are added to a ZWAD will be compressed automatically.
 
 ### Reading
 
