@@ -73,3 +73,8 @@ This is only for games that support ZWADS, such as [Sonic Robo Blast 2](https://
 * `wadcli yourwad.wad --input LUMP1 LUMP2 --rename LUA_HI SOC_BUZZ` will rename the lumps `LUMP1` and `LUMP2`, inside `yourwad.wad`, into `LUA_HI` and `SOC_BUZZ`, respectively.
 * `wadcli yourwad.wad [some other actions here] --output newwad.wad` will, after any actions done by the user, be exported as `newwad.wad`.
 * `wadcli yourwad.wad --merge coolwad.wad funnywad.wad` will merge the contents of `yourwad.wad`, `coolwad.wad` and `funnywad.wad` together.
+
+## Missing Features
+
+* Converting image files into graphics lumps is currently not supported.
+* Wildcards are currently not supported.
