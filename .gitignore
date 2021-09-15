@@ -1,6 +1,6 @@
 *.wad
 *.pk3
 *.exe
+*.o
 wadcli
-**/obj
 **/wadtests
