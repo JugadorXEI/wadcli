@@ -121,26 +121,31 @@ bool WadFormat::importWAD(std::string_view fileName)
 	if (!wadBinary || wadBinary.fail())
 		return false;
 
-	// Get type of wad: IWAD or PWAD.
-	char wadTypeChar = wadBinary.get();
-	wadType = 	 wadTypeChar == 'I' ? 	WadType::IWAD :
-				(wadTypeChar == 'P' ? 	WadType::PWAD :
-				(wadTypeChar == 'Z' ? 	WadType::ZWAD :
-										WadType::INVALID));
+	// The buffer.
+	const int length{ 4 };
+	std::string buffer{};
+	buffer.resize(length);
 
-	// Skip three - these are supposed to be the "WAD" 
-	// chars which we don't care about.
-	wadBinary.seekg(4);
+	// Get type of wad.
+	wadBinary.read(buffer.data(), length);
+	wadType = 	 buffer == "IWAD" ?	WadType::IWAD :
+				(buffer == "PWAD" ? WadType::PWAD :
+				(buffer == "ZWAD" ? WadType::ZWAD :
+				(buffer == "SDLL" ?	WadType::SDLL : 
+									WadType::INVALID)));
+									
+	if (DEBUG) std::cout << buffer << '\n';
+
+	// Quit early.
+	if (wadType == WadType::INVALID)
+		return false;
 	
 	// Get number of files and the offset to the FAT
-	const int length{ 4 };
-	char* buffer = new char[length];
+	wadBinary.read(buffer.data(), length);
+	std::memcpy(&wadNumFiles, buffer.data(), sizeof(uint32_t));
 
-	wadBinary.read(buffer, length);
-	std::memcpy(&wadNumFiles, buffer, sizeof(uint32_t));
-
-	wadBinary.read(buffer, length);
-	std::memcpy(&wadOffFAT, buffer, sizeof(uint32_t));
+	wadBinary.read(buffer.data(), length);
+	std::memcpy(&wadOffFAT, buffer.data(), sizeof(uint32_t));
 
 	// Ok, let's get to the file list.
 	wadBinary.seekg(wadOffFAT);
@@ -152,12 +157,12 @@ bool WadFormat::importWAD(std::string_view fileName)
 		uint32_t fileDataSize{ 0 };
 
 		// Where's the data at?
-		wadBinary.read(buffer, length);
-		std::memcpy(&fileDataOffset, buffer, sizeof(uint32_t));
+		wadBinary.read(buffer.data(), length);
+		std::memcpy(&fileDataOffset, buffer.data(), sizeof(uint32_t));
 
 		// How big's the data?
-		wadBinary.read(buffer, length);
-		std::memcpy(&fileDataSize, buffer, sizeof(uint32_t));
+		wadBinary.read(buffer.data(), length);
+		std::memcpy(&fileDataSize, buffer.data(), sizeof(uint32_t));
 
 		// Name of the file.
 		const int nameLength{ fileNameLength };
@@ -183,7 +188,6 @@ bool WadFormat::importWAD(std::string_view fileName)
 	}
 
 	// Ok, we're done.
-	delete[] buffer;
 	wadBinary.close();
 
 	return true;
@@ -194,7 +198,8 @@ std::string_view WadFormat::getWADTypeToChar()
 {
 	return (WadFormat::getWADType() == WadType::IWAD ? std::string_view{"IWAD"} :
 			(WadFormat::getWADType() == WadType::PWAD ? std::string_view{"PWAD"} :
-			(WadFormat::getWADType() == WadType::ZWAD ? std::string_view{"ZWAD"} : std::string_view{"INVALID"})));	
+			(WadFormat::getWADType() == WadType::ZWAD ? std::string_view{"ZWAD"} : 
+			(WadFormat::getWADType() == WadType::SDLL ? std::string_view{"SDLL"} : std::string_view{"INVALID"}))));	
 }
 
 void WadFormat::setWADType(WadType newType) { (*this).wadType = newType; }
@@ -360,6 +365,11 @@ bool WadFormat::addFileToWAD(std::string_view filename, std::string_view newname
 
 	if (newname.empty())
 	{
+		// Remove extension if exists.
+		size_t lastindex{ filename.find_last_of('.') };
+		if (lastindex != std::string::npos)
+			filename = filename.substr(0, lastindex);
+
 		if (filename.size() > fileNameLength)
 		{
 			// WAD file names can only be 8 or less.

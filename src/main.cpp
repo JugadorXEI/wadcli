@@ -24,14 +24,26 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 /*
+	Changelog:
+		Added success and failure exit codes.
+		Added `--display`: displays a lump's contents onto the terminal.
+		Added `--silent`: successful output messages will be muted.
+		Improved file adding: extension from files will be removed automatically - 
+			`LUA_FILE.lua` will be added as `LUA_FILE` without the need of a manual rename.
+		Added support for [SDLL](https://wiki.srb2.org/wiki/WAD_file#SDLL) files.
+		Fixed reading non-WAD files causing a hang + memory leak.
+*/
+
+/*
 	TODO:
-		Only allow wads from being read. Apparently I messed that up.
+		(done) Only allow wads from being read. Apparently I messed that up.
 		Graphics lumps transformation compatibility.
-		Way to output a file's contents to the terminal.
-        SDLL compatibility.
-		Implement EXIT_SUCCESS, EXIT FAILURE - https://en.cppreference.com/w/cpp/utility/program/EXIT_status
-		Use std::exit instead? https://en.cppreference.com/w/cpp/utility/program/exit
-		Wildcard/partial match support.
+		(done) --display - Way to output a file's contents to the terminal.
+		(done)	--silent flag?
+        (done) SDLL compatibility.
+		(done) Implement EXIT_SUCCESS, EXIT FAILURE - https://en.cppreference.com/w/cpp/utility/program/EXIT_status
+		(done) Use std::exit instead? https://en.cppreference.com/w/cpp/utility/program/exit
+		Wildcard/partial match support. https://en.cppreference.com/w/cpp/regex
 */
 
 #include <iostream>
@@ -39,10 +51,12 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstring>
 #include <utility>
 #include <filesystem>
+#include <algorithm>
+#include <cstdlib>
 #include <cmath>
 
 #include "headers/wadformat.h"
-#define VERSION_STRING	"v1.0"
+#define VERSION_STRING	"v1.0.1"
 
 enum CompressAction
 {
@@ -66,7 +80,7 @@ int main(int argc, char const *argv[])
 	if (argc <= 1)
 	{
 		std::cout << unknownMessage;
-		return 0;
+		std::exit(EXIT_FAILURE);
 	}
 
 	/*
@@ -88,6 +102,9 @@ int main(int argc, char const *argv[])
 		--create-markers [n1 ..] // Creates  _START and _END markers based on input.
 		-c, --compress			// Compresses a IWAD or PWAD into a ZWAD
 		-dc, --decompress [P/IWAD] // Decompresses a ZWAD into an IWAD or PWAD (this is an argument)
+		--display				// Displays a file's contents onto the terminal.
+								// Meant for plain text files, but works for everything.
+		--silent				// Successful output messages will be muted.
 		--help					// Displays this useful information.
 		--version				// Displays a version string.
 	*/
@@ -133,10 +150,14 @@ int main(int argc, char const *argv[])
 		"--output [file]\t\tIf set, a new WAD will be exported\n"
 		"\t\t\tusing the set file name.\n"
 		"\t\t\tOtherwise, the WAD will be overwritten.\n"
+		"--display\t\tDisplays a file's contents onto the terminal.\n"
+		"\t\t\tMeant for plain text files, but works for everything.\n"
+		"--silent\t\tOn successful input, no output will be generated.\n"
+		"\t\t\t(--display's output is an exception.)\n"
 		"--help\t\t\tDisplays this useful information.\n"
 		"--version\t\tDisplays a version string and licenses.\n";
 
-		return 0;
+		std::exit(EXIT_SUCCESS);
 	}
 
 	if (strcmp(argv[1], "--version") == 0)
@@ -146,7 +167,7 @@ int main(int argc, char const *argv[])
 		"Fun fact: WAD stands for Where's All (my) Data.\n\n"
 
 		"Uses LibLZF - Please see LICENSE-3RD-PARTY.txt to see 3rd party licenses.\n";
-		return 0;
+		std::exit(EXIT_SUCCESS);
 	}
 
 	// Here's where we determine what to do with the input given.
@@ -211,6 +232,13 @@ int main(int argc, char const *argv[])
 	bool addFilesWithinMarkers		{ false };
 	std::string markerName{};
 
+	// No output.
+	bool silent						{ false };
+
+	// Display following files.
+	bool displayLumps				{ false };
+	std::vector<std::string> lumpsToDisplay{};	
+
 	// Process parameters.
 	for (size_t i = 1; i < static_cast<size_t>(argc); ++i)
 	{
@@ -222,7 +250,7 @@ int main(int argc, char const *argv[])
 				// It should be a wad instead.
 				std::cout << "WADCLI: Error: Pass a WAD file first before using any arguments!\n" <<
 					unknownMessage;
-				return 0;
+				std::exit(EXIT_FAILURE);
 			}
 			else
 			{
@@ -277,7 +305,7 @@ int main(int argc, char const *argv[])
 			if (positionString.empty())
 			{
 				std::cout << "WADCLI: Used --position without setting a position!\n"; 
-				return 0;
+				std::exit(EXIT_FAILURE);
 			}
 
 			if (positionString[0] == '+' || positionString[0] == '-')
@@ -287,7 +315,7 @@ int main(int argc, char const *argv[])
 			if (toWhichPosition == 0)
 			{
 				std::cout << "WADCLI: --position's number argument parsed as zero, may be invalid.\n";
-				return 0;
+				std::exit(EXIT_FAILURE);
 			}
 
 			if constexpr (DEBUG)
@@ -305,7 +333,7 @@ int main(int argc, char const *argv[])
 			if (markerName.empty())
 			{
 				std::cout << "WADCLI: Used --within without setting a marker!\n";
-				return 0;
+				std::exit(EXIT_FAILURE);
 			}
 
 			if (markerName.size() > 2)
@@ -345,7 +373,7 @@ int main(int argc, char const *argv[])
 			if (outputName.empty())
 			{
 				std::cout << "WADCLI: Used --output without setting any file name!\n"; 
-				return 0;
+				std::exit(EXIT_FAILURE);
 			}
 
 			continue;
@@ -368,7 +396,7 @@ int main(int argc, char const *argv[])
 			if (exportPath.empty() || exportPath[0] == '-')
 			{
 				std::cout << "WADCLI: Used --path without setting any path to export!\n"; 
-				return 0;
+				std::exit(EXIT_FAILURE);
 			}
 
 			std::filesystem::path pathToExport{ exportPath }; 
@@ -381,21 +409,20 @@ int main(int argc, char const *argv[])
 				{
 					std::cout << "WADCLI: An error has been found creating folders.\n" <<
 						error.message() << '\n';
-					return 0;
+					std::exit(EXIT_FAILURE);
 				}
 
 				std::cout << "WADCLI: Successfully created folders: " << pathToExport << '\n';
-
-				/*
-				std::cout << "WADCLI: Please point to a directory to export to!\n";
-				std::cout << pathToExport << '\n';
-				return 0;
-				*/
 			}
 
 			if (exportPath[exportPath.size()] != std::filesystem::path::preferred_separator)
 				exportPath += std::filesystem::path::preferred_separator;
 
+			continue;
+		}
+		else if (strcmp(argv[i], "--silent") == 0)
+		{
+			silent = true;
 			continue;
 		}
 		// These are operations that take a list of arguments.
@@ -445,10 +472,16 @@ int main(int argc, char const *argv[])
 			listToAddTo		= &lumpsToExtract;
 			operationType	= "extract";			
 		}
+		else if (strcmp(argv[i], "--display") == 0)
+		{
+			booleanToChange = &displayLumps;
+			listToAddTo		= &lumpsToDisplay;
+			operationType	= "display";	
+		}
 		else
 		{
 			std::cout << "WADCLI: Unknown argument: " << argv[i] << '\n';
-			return 0;
+			std::exit(EXIT_FAILURE);
 		}
 
 		size_t howMany{ 0 };
@@ -472,7 +505,7 @@ int main(int argc, char const *argv[])
 		{
 			// Nothing? Let's assume it's a mistake and stop.
 			std::cout << "WADCLI: Used an " << operationType.c_str() << " operation without any arguments!\n"; 
-			return 0;
+			std::exit(EXIT_FAILURE);
 		}
 
 		// extra validation in case we're the last.
@@ -484,9 +517,8 @@ int main(int argc, char const *argv[])
 
 	if (wadFileName.empty())
 	{
-		std::cout << "Error: no file name was given for WAD!\n";
-		std::cout << unknownMessage;
-		return 0;
+		std::cout << "Error: no file name was given for WAD!\n" << unknownMessage;
+		std::exit(EXIT_FAILURE);
 	}
 
 	// Let's create the wad object.
@@ -497,8 +529,9 @@ int main(int argc, char const *argv[])
 		{
 			std::cout << "WADCLI: There was an error reading " <<
 				std::quoted(wadFileName) << ".\n" <<
-				"We are not allowed to read it.\n";
-			return 0;
+				"It may not be a WAD or \n" <<
+				"we are not allowed to read it.\n";
+			std::exit(EXIT_FAILURE);
 		}
 	}
 	else if (!createWADIfPossible)
@@ -506,42 +539,46 @@ int main(int argc, char const *argv[])
 		std::cout << "WADCLI: There was an error reading " << 
 			std::quoted(wadFileName) << ".\n" <<
 			"It may not exist.\n";
-		return 0;
+		std::exit(EXIT_FAILURE);
 	}
 
 	if (!exportPath.empty() && !(extractLumps || extractAllLumps || !outputName.empty()))
 	{
 		std::cout << "WADCLI: --path requires --extract, --extract-all or --output.\n" <<
 			"Did you mean to use --input instead?\n";
-		return 0;
+		std::exit(EXIT_FAILURE);
 	}
 
 	if (changePositions != PositionAction::NoChange && !inputtedFiles)
 	{
 		std::cout << "WADCLI: --position/--swap require --input to change/swap lump locations!\n";
-		return 0;
+		std::exit(EXIT_FAILURE);
 	}
 
 	if (changePositions == PositionAction::Swap && filesToInput.size() > 2)
 	{
 		std::cout << "WADCLI: With --swap, only two lumps can be swapped at a time!\n";
-		return 0;
+		std::exit(EXIT_FAILURE);
 	}
 
 	// We're just reading the file.
-	if (!wadFileName.empty() and argc == 2)
+	if (!wadFileName.empty() && (argc == 2 || (argc == 3 && silent)))
 	{
-		std::cout << "WAD: " << wad.getWADName() << " (" << wad.getWADTypeToChar() << ")" << '\n';
-
-		unsigned int numFiles = wad.getNumFiles();
-		std::cout << "Files (" << numFiles << "):\n";
-		for (unsigned int i = 0; i < numFiles; ++i)
+		if (!silent)
 		{
-			std::cout << "File " << (i + 1) << ": " << wad[i].name << " (Size: " << wad[i].dataSize << ", Offset: " << wad[i].dataOffset << ")" << '\n';
+			std::cout << "WAD: " << std::quoted(wad.getWADName()) << " (" << wad.getWADTypeToChar() << ")" << '\n';
+
+			unsigned int numFiles = wad.getNumFiles();
+			std::cout << "Files (" << numFiles << "):\n";
+			for (unsigned int i = 0; i < numFiles; ++i)
+			{
+				std::cout << "File " << (i + 1) << ": " << wad[i].name << " (Size: " << wad[i].dataSize << ", Offset: " << wad[i].dataOffset << ")" << '\n';
+			}
+
+			std::cout << "WADCLI: Done reading " << std::quoted(wad.getWADName()) << ".\n";
 		}
 
-		std::cout << "Done reading " << wad.getWADName() << '\n';
-		return 0;
+		std::exit(EXIT_SUCCESS);
 	}
 
 	// Merging WADs
@@ -551,7 +588,7 @@ int main(int argc, char const *argv[])
 		{
 			if (!std::filesystem::exists(name))
 			{
-				std::cout << "WADCLI: There was an error reading " << name << '\n' <<
+				std::cout << "WADCLI: There was an error reading " << std::quoted(name) << '\n' <<
 					"It may not exist.\n";
 				continue;
 			}
@@ -559,8 +596,9 @@ int main(int argc, char const *argv[])
 			WadFormat mergingWAD{};
 			if (!mergingWAD.importWAD(name))
 			{
-				std::cout << "WADCLI: There was an error reading " << name << '\n' <<
-					"We do not have permission to read it.\n";
+				std::cout << "WADCLI: There was an error reading " << std::quoted(name) << '\n' <<
+					"It may not be a WAD or \n" <<
+					"we do not have permission to read it.\n";
 				continue;
 			}
 
@@ -576,8 +614,9 @@ int main(int argc, char const *argv[])
 			for (WadFile& lump : mergingWAD.getWADLumpList())
 				wad.addFileToWAD(lump);
 
-			std::cout << "WADCLI: Done merging WAD " << name <<
-				" into " << wadFileName << ".\n";
+			if (!silent)
+				std::cout << "WADCLI: Done merging WAD " << std::quoted(name) <<
+					" into " << std::quoted(wadFileName) << ".\n";
 		}
 	}
 
@@ -594,13 +633,17 @@ int main(int argc, char const *argv[])
 				if (index > -1 && static_cast<unsigned int>(index) < wad.getNumFiles())
 				{
 					wad.removeFileByIndex(static_cast<unsigned int>(index));
-					std::cout << "WADCLI: Removed file #" << index << " from WAD.\n";
+					if (!silent)
+						std::cout << "WADCLI: Removed file #" << index << " from WAD.\n";
 				}
 			}
 			else if (wad.removeFileByName(name))
-				std::cout << "WADCLI: Removed file " << name << " from WAD.\n";
+			{
+				if (!silent)
+					std::cout << "WADCLI: Removed file " << std::quoted(name) << " from WAD.\n";	
+			}
 			else
-				std::cout << "WADCLI: Could not find file " << name << " to remove from WAD.\n";
+				std::cout << "WADCLI: Could not find file " << std::quoted(name) << " to remove from WAD.\n";
 		}	
 	}
 
@@ -637,7 +680,7 @@ int main(int argc, char const *argv[])
 
 				if (markerIndex == -1)
 				{
-					std::cout << "WADCLI: Could not find marker " << markerName << ", " <<
+					std::cout << "WADCLI: Could not find marker " << std::quoted(markerName) << ", " <<
 						"lumps will be placed at the end of the WAD.\n";
 					addFilesWithinMarkers = false;
 				}
@@ -649,19 +692,21 @@ int main(int argc, char const *argv[])
 				overridingFiles))
 			{
 				std::string realName{ !filesToRename.empty() && filesToRename[i].size() > 0 ? filesToRename[i] : name.c_str() };
-				std::cout << "WADCLI: Added file " << realName << " to WAD.\n";
+				if (!silent)
+					std::cout << "WADCLI: Added file " << std::quoted(realName) << " to WAD.\n";
 
 				if (addFilesWithinMarkers)
 				{
 					if (wad.moveLumpPosByName(realName.c_str(), markerIndex, false))
-						std::cout << "WADCLI: Moved " << realName << " to position " <<
-							markerIndex << ".\n"; 
+						if (!silent)
+							std::cout << "WADCLI: Moved " << std::quoted(realName) << " to position " <<
+								markerIndex << ".\n"; 
 				}	
 
 				++success;
 			}
 			else
-				std::cout << "WADCLI: Can't read file " << name << ": it may not exist " <<
+				std::cout << "WADCLI: Can't read file " << std::quoted(name) << ": it may not exist " <<
 					"or we are not allowed to read it.\n";
 
 			++i;
@@ -670,7 +715,7 @@ int main(int argc, char const *argv[])
 		if (success == 0)
 		{
 			std::cout << "WADCLI: Error: there was trouble adding all files. Quitting early.\n";
-			return 0;
+			std::exit(EXIT_FAILURE);
 		}
 	}
 
@@ -679,7 +724,7 @@ int main(int argc, char const *argv[])
 		if (!inputtedFiles)
 		{
 			std::cout << "WADCLI: You must --input the files you wish to rename!\n";
-			return 0;
+			std::exit(EXIT_FAILURE);
 		}
 
 		size_t i{ 0 };
@@ -703,11 +748,14 @@ int main(int argc, char const *argv[])
 			}
 
 			if (couldFindIt)
-				std::cout << "WADCLI: Successfully renamed " << lumpName <<
-					" into " << filesToRename[i].c_str() << ".\n";
+			{
+				if (!silent)
+					std::cout << "WADCLI: Successfully renamed " << std::quoted(lumpName) <<
+						" into " << std::quoted(filesToRename[i].c_str()) << ".\n";
+			}
 			else
-				std::cout << "WADCLI: Could not find lump " << lumpName <<
-					" to rename into " << filesToRename[i].c_str() << ".\n";
+				std::cout << "WADCLI: Could not find lump " << std::quoted(lumpName) <<
+					" to rename into " << std::quoted(filesToRename[i].c_str()) << ".\n";
 
 			i++;
 		}
@@ -722,13 +770,14 @@ int main(int argc, char const *argv[])
 		{
 			if (wad.swapLumpPosByName(filesToInput[0], filesToInput[1]))
 			{
-				std::cout << "WADCLI: Lumps " << filesToInput[0] <<
-					" and " << filesToInput[1] << " were successfully swapped.\n";
+				if (!silent)
+					std::cout << "WADCLI: Lumps " << std::quoted(filesToInput[0]) <<
+						" and " << std::quoted(filesToInput[1]) << " were successfully swapped.\n";
 			}
 			else
 			{
-				std::cout << "WADCLI: Could not find lumps " << filesToInput[0] <<
-					" and " << filesToInput[1] << " to swap.\n";
+				std::cout << "WADCLI: Could not find lumps " << std::quoted(filesToInput[0]) <<
+					" and " << std::quoted(filesToInput[1]) << " to swap.\n";
 				// set to no change - if this was the only thing done, then the wad will not re-export.
 				changePositions = PositionAction::NoChange;
 			}
@@ -741,14 +790,15 @@ int main(int argc, char const *argv[])
 					changePositionsRelative ? toWhichPosition : toWhichPosition - 1,
 					changePositionsRelative))
 				{
-					std::cout << "WADCLI: " << lumpName << " moved successfully to " <<
-						(changePositionsRelative ?
-						(std::signbit(toWhichPosition) ? "-" : "+")
-						 : "") << std::abs(toWhichPosition) <<
-						(changePositionsRelative ? " (relative)" : "") << ".\n";
+					if (!silent)
+						std::cout << "WADCLI: " << std::quoted(lumpName) << " moved successfully to " <<
+							(changePositionsRelative ?
+							(std::signbit(toWhichPosition) ? "-" : "+")
+							: "") << std::abs(toWhichPosition) <<
+							(changePositionsRelative ? " (relative)" : "") << ".\n";
 				}
 				else
-					std::cout << "WADCLI: We either could not find the lump " << lumpName << '\n' <<
+					std::cout << "WADCLI: We either could not find the lump " << std::quoted(lumpName) << '\n' <<
 						"to move, or the movement would have made the lump\n" << 
 						"go out of bounds.\n";
 			}
@@ -761,7 +811,8 @@ int main(int argc, char const *argv[])
 		{
 			// We found it, so now we're extracting it.
 			if (wad.extractLump(lump, noExtensionOnExport, exportPath.empty() ? "" : exportPath))
-				std::cout << "WADCLI: Successfully extracted " << lump.name << ".\n";
+				if (!silent)
+					std::cout << "WADCLI: Successfully extracted " << std::quoted(lump.name) << ".\n";
 		}
 	}
 	else if (extractLumps)
@@ -769,7 +820,7 @@ int main(int argc, char const *argv[])
 		if (lumpsToExtract.empty())
 		{
 			std::cout << "WADCLI: You must provide the lump names you wish to extract!\n";
-			return 0;
+			std::exit(EXIT_FAILURE);
 		}
 
 		for (std::string& lumpName : lumpsToExtract)
@@ -783,7 +834,9 @@ int main(int argc, char const *argv[])
 					// We found it, so now we're extracting it.
 					if (wad.extractLump(lump, noExtensionOnExport, exportPath.empty() ? "" : exportPath))
 					{
-						std::cout << "WADCLI: Successfully extracted " << lumpName << ".\n";
+						if (!silent)
+							std::cout << "WADCLI: Successfully extracted " << std::quoted(lumpName) << ".\n";
+
 						wasFound = true;
 					}
 
@@ -792,8 +845,35 @@ int main(int argc, char const *argv[])
 			}
 
 			if (!wasFound)
-				std::cout << "WADCLI: Could not find lump " << lumpName << ".\n";
+				std::cout << "WADCLI: Could not find lump " << std::quoted(lumpName) << ".\n";
 		}
+	}
+
+	if (displayLumps)
+	{
+		for (std::string& lumpName : lumpsToDisplay)
+		{
+			bool wasFound{ false };
+
+			for (WadFile& lump : wad.getWADLumpList())
+			{
+				if (strcmp(lumpName.c_str(), lump.name.c_str()) == 0)
+				{
+					if (!silent)
+							std::cout << "WADCLI: Contents of "<< std::quoted(lumpName) << ":\n";
+
+					std::for_each(lump.binaryData.begin(), lump.binaryData.end(),
+						[](const char c){ std::cout << c; });
+					std::cout << '\n';
+
+					wasFound = true;
+					break;
+				}
+			}
+
+			if (!wasFound)
+				std::cout << "WADCLI: Could not find lump " << std::quoted(lumpName) << ".\n";
+		}		
 	}
 
 	// Yay, compression!
@@ -804,17 +884,21 @@ int main(int argc, char const *argv[])
 			if (wad.getWADType() == ZWAD)
 			{
 				std::cout << "WADCLI: Error: can't compress an already-compressed ZWAD!\n";
-				return 0;
+				std::exit(EXIT_FAILURE);
 			}
 
-			std::cout << "WADCLI: Compressing WAD " << wad.getWADName() << "...\n";
+			if (!silent)
+				std::cout << "WADCLI: Compressing WAD " << wad.getWADName() << "...\n";
 
 			if (wad.compressWAD())
-				std::cout << "WADCLI: Compressed WAD successfully.\n";
+			{
+				if (!silent)
+					std::cout << "WADCLI: Compressed WAD successfully.\n";
+			}
 			else
 			{
 				std::cout << "WADCLI: There was an error compressing the WAD!\n";
-				return 0;
+				std::exit(EXIT_FAILURE);
 			}
 				
 		}
@@ -823,17 +907,21 @@ int main(int argc, char const *argv[])
 			if (wad.getWADType() != ZWAD)
 			{
 				std::cout << "WADCLI: Error: can only decompress ZWADs!\n";
-				return 0;
+				std::exit(EXIT_FAILURE);
 			}
 
-			std::cout << "WADCLI: Decompressing ZWAD " << wad.getWADName() << "...\n";
+			if (!silent)
+				std::cout << "WADCLI: Decompressing ZWAD " << wad.getWADName() << "...\n";
 			
 			if (wad.decompressWAD(wadTypeAfterDecompress))
-				std::cout << "WADCLI: Decompressed WAD successfully.\n";
+			{
+				if (!silent)
+					std::cout << "WADCLI: Decompressed WAD successfully.\n";
+			}
 			else
 			{
 				std::cout << "WADCLI: There was an error decompressing the WAD!\n";
-				return 0;
+				std::exit(EXIT_FAILURE);
 			}
 				
 		}
@@ -872,17 +960,21 @@ int main(int argc, char const *argv[])
 	
 	if (extractLumps || extractAllLumps)
 	{
-		std::cout << "WADCLI: All extraction operations finished.\n";
+		if (!silent)
+			std::cout << "WADCLI: All extraction operations finished.\n";
 	}
+
+	int finalExitCode{ EXIT_SUCCESS };
 
 	if (wereAnyChangesDone)
 		wad.exportWAD(wadFileName);
-	else if (!(extractLumps || extractAllLumps))
+	else if (!(extractLumps || extractAllLumps || displayLumps))
 	{
 		std::cout << "WADCLI: No action was done.\n" <<
 			"Arguments might have been misused.\n";
+		finalExitCode = EXIT_FAILURE;
 	}
 
 	// std::cout << "Done.\n";
-	return 0;
+	std::exit(finalExitCode);
 }

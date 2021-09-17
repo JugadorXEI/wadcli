@@ -37,7 +37,8 @@ enum WadType
 	IWAD 	= 0, 	// Internal WAD
 	PWAD 	= 1, 	// Patch WAD
 	ZWAD	= 2, 	// ZIP WAD
-	CUSTOM	= 3		// Whatever else (SDLL and so)
+	SDLL	= 3,	// SDLL (SRB2 easter egg WADs)
+	CUSTOM	= 100	// Whatever else (SDLL and so)
 };
 
 struct WadFile
