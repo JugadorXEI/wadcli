@@ -43,7 +43,8 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         (done) SDLL compatibility.
 		(done) Implement EXIT_SUCCESS, EXIT FAILURE - https://en.cppreference.com/w/cpp/utility/program/EXIT_status
 		(done) Use std::exit instead? https://en.cppreference.com/w/cpp/utility/program/exit
-		Wildcard/partial match support. https://en.cppreference.com/w/cpp/regex
+		(for export (done), delete (todo), display (todo), position (todo), input (todo?), rename (todo?))
+			Wildcard/partial match support. https://en.cppreference.com/w/cpp/regex
 */
 
 #include <iostream>
@@ -56,6 +57,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cmath>
 
 #include "headers/wadformat.h"
+#include "headers/helpers.h"
 #define VERSION_STRING	"v1.0.1"
 
 enum CompressAction
@@ -89,7 +91,7 @@ int main(int argc, char const *argv[])
 		-a, --add  [f1 ...]		// Add file(s) to wad
 		--within [marker]		// Adds files inside the markers provided.
 								// Partial matches supported: F and F_START will work.
-		-d, --delete  [f1 ...] 	// Delete file(s) from wad by file name or by index (using ?num)
+		-d, --delete  [f1 ...] 	// Delete file(s) from wad by file name or by index (using -num)
 		--delete 
 		-o,	--overwrite			// To be used alongside -a, overwrites files if they exist. 
 		-rn, --rename [f1 ...]	// Rename file(s) from wad, first is file name, second is new name
@@ -625,7 +627,13 @@ int main(int argc, char const *argv[])
 	{
 		for (std::string& name : filesToRemove)
 		{
-			if (int index = atoi(name.substr(1, name.size()).c_str()) - 1; name[0] == '?')
+			bool patternMatching
+			{
+				name.find_first_of('*') != std::string::npos ||
+				name.find_first_of('?') != std::string::npos
+			};
+
+			if (int index = atoi(name.substr(1, name.size()).c_str()) - 1; name[0] == '-')
 			{
 				if constexpr (DEBUG) 
 					std::cout << "removing " << index << " \n";
@@ -636,6 +644,10 @@ int main(int argc, char const *argv[])
 					if (!silent)
 						std::cout << "WADCLI: Removed file #" << index << " from WAD.\n";
 				}
+			}
+			else if (patternMatching)
+			{
+				
 			}
 			else if (wad.removeFileByName(name))
 			{
@@ -826,21 +838,40 @@ int main(int argc, char const *argv[])
 		for (std::string& lumpName : lumpsToExtract)
 		{
 			bool wasFound{ false };
+			bool patternMatching
+			{
+				lumpName.find_first_of('*') != std::string::npos ||
+				lumpName.find_first_of('?') != std::string::npos
+			};
 
 			for (WadFile& lump : wad.getWADLumpList())
 			{
-				if (strcmp(lumpName.c_str(), lump.name.c_str()) == 0)
+				if constexpr (DEBUG)
+				{
+					if (patternMatching)
+					{
+						std::cout << "Pattern: " << lumpName << " - " <<
+						"Lump Name: " << lump.name << " - " <<
+						"Pattern matches?\n" << wildcardMatch(lump.name.c_str(), lumpName.c_str(),
+							lump.name.size(), lumpName.size()) << '\n';
+					}
+				}
+
+				if ((patternMatching && wildcardMatch(lump.name.c_str(), lumpName.c_str(),
+					lump.name.size(), lumpName.size())) ||
+					strcmp(lumpName.c_str(), lump.name.c_str()) == 0)
 				{
 					// We found it, so now we're extracting it.
 					if (wad.extractLump(lump, noExtensionOnExport, exportPath.empty() ? "" : exportPath))
 					{
 						if (!silent)
-							std::cout << "WADCLI: Successfully extracted " << std::quoted(lumpName) << ".\n";
+							std::cout << "WADCLI: Successfully extracted " << std::quoted(lump.name) << ".\n";
 
 						wasFound = true;
 					}
 
-					break;
+					if (!patternMatching)
+						break;
 				}
 			}
 
@@ -854,20 +885,34 @@ int main(int argc, char const *argv[])
 		for (std::string& lumpName : lumpsToDisplay)
 		{
 			bool wasFound{ false };
+			bool patternMatching
+			{
+				lumpName.find_first_of('*') != std::string::npos ||
+				lumpName.find_first_of('?') != std::string::npos
+			};
 
 			for (WadFile& lump : wad.getWADLumpList())
 			{
-				if (strcmp(lumpName.c_str(), lump.name.c_str()) == 0)
+				if ((patternMatching && wildcardMatch(lump.name.c_str(), lumpName.c_str(),
+					lump.name.size(), lumpName.size())) ||
+					strcmp(lumpName.c_str(), lump.name.c_str()) == 0)
 				{
 					if (!silent)
-							std::cout << "WADCLI: Contents of "<< std::quoted(lumpName) << ":\n";
+							std::cout << "WADCLI: Contents of "<< std::quoted(lump.name) << ":\n";
+
+					if (wad.getWADType() == WadType::ZWAD)
+						wad.decompressFile(lump);
 
 					std::for_each(lump.binaryData.begin(), lump.binaryData.end(),
 						[](const char c){ std::cout << c; });
 					std::cout << '\n';
 
+					if (wad.getWADType() == WadType::ZWAD)
+						wad.compressFile(lump);
+
 					wasFound = true;
-					break;
+					if (!patternMatching)
+						break;
 				}
 			}
 

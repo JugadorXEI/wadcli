@@ -30,7 +30,7 @@ ifeq ($(WINDOWS), 1)
 	LDFLAGS += -static -static-libgcc -static-libstdc++
 endif
 
-_DEPS=wadformat.h
+_DEPS=wadformat.h helpers.h
 DEPS=$(patsubst %, $(DEPDIR)/%, $(_DEPS))
 
 _OBJ=main.o wadformat.o

@@ -2,6 +2,7 @@
 *.pk3
 *.exe
 *.zip
+*.lua
 *.o
 wadcli
 **/wadtests

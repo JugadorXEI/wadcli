@@ -134,7 +134,7 @@ bool WadFormat::importWAD(std::string_view fileName)
 				(buffer == "SDLL" ?	WadType::SDLL : 
 									WadType::INVALID)));
 									
-	if (DEBUG) std::cout << buffer << '\n';
+	if constexpr (DEBUG) std::cout << buffer << '\n';
 
 	// Quit early.
 	if (wadType == WadType::INVALID)
