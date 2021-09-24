@@ -15,7 +15,7 @@ DIRLOC=
 ifeq ($(DEBUG), 1)
 	CPPFLAGS += -DDEBUG=1
 else
-	CPPFLAGS += -DDEBUG=0
+	CPPFLAGS += -DDEBUG=0 -O3
 endif
 
 ifeq ($(STATIC), 1)
