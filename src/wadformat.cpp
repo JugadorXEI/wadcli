@@ -28,6 +28,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <vector>
 #include <iostream>
 #include <functional>
+#include <filesystem>
 #include <liblzf/lzf.h>
 #include "headers/wadformat.h"
 
@@ -538,7 +539,8 @@ void WadFormat::trimStringToMarkerCharacters(std::string& markerName)
 		markerName = markerName.substr(0, 2);
 }
 
-bool WadFormat::extractLump(WadFile& file, bool noExtension, std::string_view path)
+std::pair<bool, std::optional<std::string>>
+	WadFormat::extractLump(WadFile& file, bool noExtension, bool noOverride, std::string_view path)
 {
 	// We should give these an extension.
 	std::string filename{ file.name };
@@ -565,9 +567,60 @@ bool WadFormat::extractLump(WadFile& file, bool noExtension, std::string_view pa
 			std::cout << filename << '\n';
 	}
 
+	if (noOverride && std::filesystem::exists( filename ))
+	{
+		if constexpr (DEBUG)
+			std::cout << filename << " exists, append a number before \".\"\n";
+
+		for (size_t i{ 1 } ;; ++i)
+		{
+			std::string tempFileName;
+
+			// put the number before the dot (extension), if it exists.
+			size_t extensionIndex{ filename.find_last_of('.') };
+			if (extensionIndex != std::string::npos)
+			{
+				tempFileName = filename.substr(0, extensionIndex) +
+					std::to_string(i) +
+					filename.substr(extensionIndex, filename.size());
+			}
+			else
+			{
+				size_t firstNullTerminator{ filename.find_first_of('\0') };
+				if (firstNullTerminator == std::string::npos)
+					firstNullTerminator = filename.size();
+
+				tempFileName = filename.substr(0, firstNullTerminator) + std::to_string(i);
+			}
+
+			if constexpr (DEBUG)
+				std::cout << "New temp name: " << std::quoted(tempFileName) << "\n";	
+
+			std::filesystem::path tempFile{ tempFileName };
+			if (std::filesystem::exists( tempFile ))
+			{
+				if constexpr (DEBUG)
+				{
+					std::cout << "New temp name " << std::quoted(tempFile.c_str()) << " exists, try again.\n";
+				}
+
+
+				continue;
+			}	
+			else
+			{
+				if constexpr (DEBUG)
+					std::cout << "New temp name does not exist, let's use it.\n";
+				
+				filename = tempFileName;
+				break;
+			}	
+		}
+	}
+
 	std::ofstream newFile{ filename, std::ios_base::binary };
 	if (newFile.fail())
-		return false;
+		return std::pair{ false, std::nullopt };
 
 	std::vector<char>& binary{ file.binaryData };
 	uint32_t &size{ file.dataSize };
@@ -603,7 +656,7 @@ bool WadFormat::extractLump(WadFile& file, bool noExtension, std::string_view pa
 	newFile.write(&binary[startingIndex], size - startingIndex);
 
 	newFile.close();
-	return true;
+	return std::pair{ true, filename };
 }
 
 bool WadFormat::swapLumpPosByName(std::string_view name1, std::string_view name2)

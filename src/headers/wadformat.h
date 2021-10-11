@@ -52,8 +52,8 @@ struct WadFile
 class WadFormat
 {
 public:
-	static const int minSizeForCompression{ 1024 };
-	static const int fileNameLength{ 8 };
+	static constexpr int minSizeForCompression{ 1024 };
+	static constexpr int fileNameLength{ 8 };
 
 	WadFormat();
 	WadFormat(std::string_view fileName);
@@ -82,7 +82,9 @@ public:
 	void removeFileByIndex(const unsigned int index);
 	bool removeFileByName(std::string_view filename);
 	
-	bool extractLump(WadFile& file, bool noExtension = false, std::string_view path = "");
+	std::pair<bool, std::optional<std::string>>
+		extractLump(WadFile& file, bool noExtension = false, bool noOverride = false, std::string_view path = "");
+
 	void createMarkers(std::string_view markerName);
 
 	bool swapLumpPosByName(std::string_view name1, std::string_view name2);

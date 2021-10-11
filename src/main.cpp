@@ -41,7 +41,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		Graphics lumps transformation compatibility.
 		Improve exporting the wad and files in some aspects:
 			- export wad: create a temp. wad first, then rename it to the actual wad when successful.
-			- lumps with same name: add "001", "002"... at the end of file names before extension.
+			- lumps with same name: add "1", "2"... at the end of file names before extension.
 		(done) --display - Way to output a file's contents to the terminal.
 		(done)	--silent flag?
         (done) SDLL compatibility.
@@ -63,7 +63,8 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "headers/wadformat.h"
 #include "headers/palette.h"
 #include "headers/helpers.h"
-#define VERSION_STRING	"v1.0.1"
+
+constexpr std::string_view VERSION_STRING{ "v1.0.1 (\"ow the edge\" build)" };
 
 enum CompressAction
 {
@@ -90,12 +91,14 @@ int main(int argc, char const *argv[])
 		std::exit(EXIT_FAILURE);
 	}
 
+	/*
 	if constexpr (DEBUG)
 	{
 		DoomPalette palette{"PLAYPAL.pal"};
 		// int paletteNum{ palette.getNumPalettes() };
 		return 0;
 	}
+	*/
 
 	/*
 		No argument				// Reads the file.
@@ -147,6 +150,8 @@ int main(int argc, char const *argv[])
 		"--extract-all\t\tExtracts all lumps from the WAD.\n"
 		"--no-extension\t\tNo extension will be added to exported files.\n"
 		"--path\t\t\tPath to export the files to.\n"
+		"--no-override\t\tWon't override lumps on extract.\n"
+		"\t\t\tUseful for when there's lumps with the same name.\n"
 		"-rn, --rename [f1 ...]\tRename file(s) from WAD\n"
 		"\t\t\tIf using --add or --input, then the files being added\n"
 		"\t\t\tcan be renamed beforehand, in the order passed to.\n"
@@ -248,6 +253,9 @@ int main(int argc, char const *argv[])
 
 	// No output.
 	bool silent						{ false };
+
+	// No export overriding.
+	bool noExportOverride			{ false };
 
 	// Display following files.
 	bool displayLumps				{ false };
@@ -400,6 +408,11 @@ int main(int argc, char const *argv[])
 		else if (strcmp(argv[i], "--no-extension") == 0)
 		{
 			noExtensionOnExport = true;
+			continue;
+		}
+		else if (strcmp(argv[i], "--no-override") == 0)
+		{
+			noExportOverride = true;
 			continue;
 		}
 		else if (strcmp(argv[i], "--path") == 0)
@@ -834,9 +847,11 @@ int main(int argc, char const *argv[])
 		for (WadFile& lump : wad.getWADLumpList())
 		{
 			// We found it, so now we're extracting it.
-			if (wad.extractLump(lump, noExtensionOnExport, exportPath.empty() ? "" : exportPath))
+			if (std::pair results{ wad.extractLump(lump, noExtensionOnExport,
+				noExportOverride, exportPath.empty() ? "" : exportPath) };
+				results.first)
 				if (!silent)
-					std::cout << "WADCLI: Successfully extracted " << std::quoted(lump.name) << ".\n";
+					std::cout << "WADCLI: Successfully extracted " << std::quoted(results.second.value()) << ".\n";
 		}
 	}
 	else if (extractLumps)
@@ -856,8 +871,10 @@ int main(int argc, char const *argv[])
 				lumpName.find_first_of('?') != std::string::npos
 			};
 
+			size_t index{ 1 };
+
 			for (WadFile& lump : wad.getWADLumpList())
-			{
+			{				
 				if constexpr (DEBUG)
 				{
 					if (patternMatching)
@@ -874,17 +891,28 @@ int main(int argc, char const *argv[])
 					strcmp(lumpName.c_str(), lump.name.c_str()) == 0)
 				{
 					// We found it, so now we're extracting it.
-					if (wad.extractLump(lump, noExtensionOnExport, exportPath.empty() ? "" : exportPath))
+					if (std::pair results{ wad.extractLump(lump, noExtensionOnExport,
+						noExportOverride, exportPath.empty() ? "" : exportPath) };
+						results.first)
 					{
 						if (!silent)
-							std::cout << "WADCLI: Successfully extracted " << std::quoted(lump.name) << ".\n";
-
+						{
+							std::cout << "WADCLI: Successfully extracted " << std::quoted(lump.name) <<
+							" (#" << index << ")" <<
+							// this handles the part where the file *might* have been renamed on export.
+							(results.second != std::nullopt && results.second.value() != lump.name ?
+							std::string{std::string{" as "} + '\"' + results.second.value() + '\"'} : "") <<
+							".\n";
+						}
+							
 						wasFound = true;
 					}
 
-					if (!patternMatching)
+					if (!noExportOverride && !patternMatching)
 						break;
 				}
+
+				++index;
 			}
 
 			if (!wasFound)
