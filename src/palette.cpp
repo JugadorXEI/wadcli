@@ -28,18 +28,24 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "headers/palette.h"
 
 DoomPalette::DoomPalette(std::vector<char> data, bool onlyFirstPalette)
-	: numberOfPalettes{ data.size() / (DoomPalette::numIndexesPerPalette * 3) }
+	: numberOfPalettes{ static_cast<int>(data.size() / (DoomPalette::numIndexesPerPalette * 3)) }
 {
 	std::cout << "palettes found: " << numberOfPalettes << '\n';
 
 	int index{ 0 };
-	for (size_t i = 0; i < numberOfPalettes; i++)
+	for (int i = 0; i < numberOfPalettes; i++)
 	{
+		std::cout << "Palette " << i << '\n';
 		for (size_t j = 0; j < DoomPalette::numIndexesPerPalette; j++)
 		{
-			for (size_t k = 0; j < 3; k++)
+			std::cout << "\tIndex " << j << '\n';
+			for (size_t k = 0; k < 3; k++)
 			{
-				palettes[i][j][k] = data[++index];
+				std::cout << "\t\tColor " << k << " ";
+				palettes[i][j][k] = data[index++];
+
+				unsigned int color{ static_cast<unsigned int>(palettes[i][j][k]) };
+				std::cout << ( (color > 255) ? 255 - (UINT32_MAX - color) : color ) << '\n';
 			}
 		}
 	}

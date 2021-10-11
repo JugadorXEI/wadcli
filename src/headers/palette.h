@@ -33,7 +33,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 class DoomPalette
 {
 public:
-	static const unsigned int numIndexesPerPalette{ 255 };
+	static const unsigned int numIndexesPerPalette{ 256 };
 	static const unsigned int paletteUpperCap{ 14 };
 	static const unsigned int paletteLowerCap{ 0 };
 

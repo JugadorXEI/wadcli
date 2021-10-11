@@ -37,7 +37,11 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*
 	TODO:
 		(done) Only allow wads from being read. Apparently I messed that up.
+		APPARENTLY LUMPS COULD HAVE THE SAME NAME AND HAVE DIFFERENT CONTENT AND NO ONE TOLD ME THIS. FIX IT.
 		Graphics lumps transformation compatibility.
+		Improve exporting the wad and files in some aspects:
+			- export wad: create a temp. wad first, then rename it to the actual wad when successful.
+			- lumps with same name: add "001", "002"... at the end of file names before extension.
 		(done) --display - Way to output a file's contents to the terminal.
 		(done)	--silent flag?
         (done) SDLL compatibility.
@@ -57,6 +61,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cmath>
 
 #include "headers/wadformat.h"
+#include "headers/palette.h"
 #include "headers/helpers.h"
 #define VERSION_STRING	"v1.0.1"
 
@@ -85,6 +90,13 @@ int main(int argc, char const *argv[])
 		std::exit(EXIT_FAILURE);
 	}
 
+	if constexpr (DEBUG)
+	{
+		DoomPalette palette{"PLAYPAL.pal"};
+		// int paletteNum{ palette.getNumPalettes() };
+		return 0;
+	}
+
 	/*
 		No argument				// Reads the file.
 		--create				// Creates the wad if it does not exist.
@@ -104,7 +116,7 @@ int main(int argc, char const *argv[])
 		--create-markers [n1 ..] // Creates  _START and _END markers based on input.
 		-c, --compress			// Compresses a IWAD or PWAD into a ZWAD
 		-dc, --decompress [P/IWAD] // Decompresses a ZWAD into an IWAD or PWAD (this is an argument)
-		--display				// Displays a file's contents onto the terminal.
+		--display [f1 ...]		// Displays a file's contents onto the terminal.
 								// Meant for plain text files, but works for everything.
 		--silent				// Successful output messages will be muted.
 		--help					// Displays this useful information.
@@ -152,7 +164,7 @@ int main(int argc, char const *argv[])
 		"--output [file]\t\tIf set, a new WAD will be exported\n"
 		"\t\t\tusing the set file name.\n"
 		"\t\t\tOtherwise, the WAD will be overwritten.\n"
-		"--display\t\tDisplays a file's contents onto the terminal.\n"
+		"--display [f1 ...]\t\tDisplays a file's contents onto the terminal.\n"
 		"\t\t\tMeant for plain text files, but works for everything.\n"
 		"--silent\t\tOn successful input, no output will be generated.\n"
 		"\t\t\t(--display's output is an exception.)\n"

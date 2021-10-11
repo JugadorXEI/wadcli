@@ -20,6 +20,7 @@ endif
 
 ifeq ($(STATIC), 1)
 	LDLIBS = $(patsubst %.so, %.a, $(_LDLIBS))
+	LDFLAGS += -static -static-libgcc -static-libstdc++
 else
 	LDLIBS = $(_LDLIBS)
 endif
@@ -27,13 +28,12 @@ endif
 ifeq ($(WINDOWS), 1)
 	CXX = x86_64-w64-mingw32-g++
 	DIRAFTER = -idirafter /usr/include/
-	LDFLAGS += -static -static-libgcc -static-libstdc++
 endif
 
-_DEPS=wadformat.h helpers.h
+_DEPS=wadformat.h palette.h helpers.h
 DEPS=$(patsubst %, $(DEPDIR)/%, $(_DEPS))
 
-_OBJ=main.o wadformat.o
+_OBJ=main.o wadformat.o palette.o
 OBJ=$(patsubst %, $(OBJDIR)/%, $(_OBJ))
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp $(DEPS)
